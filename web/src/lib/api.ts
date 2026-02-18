@@ -17,9 +17,13 @@ export function getAuthToken() {
 
 async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
   };
+
+  // Only set Content-Type for requests that have a body
+  if (options.body) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;
