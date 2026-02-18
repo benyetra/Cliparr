@@ -27,8 +27,15 @@ export default async function authRoutes(app: FastifyInstance) {
     }
 
     // Validate token and get user info
-    const plexUser = await validatePlexToken(plexToken);
-    const admin = await isServerOwner(plexToken);
+    let plexUser;
+    let admin;
+    try {
+      plexUser = await validatePlexToken(plexToken);
+      admin = await isServerOwner(plexToken);
+    } catch (err) {
+      app.log.error(err, 'Failed to validate Plex token during poll');
+      return reply.status(502).send({ error: 'Failed to validate with Plex' });
+    }
 
     // Upsert user
     let user = await db.query.users.findFirst({

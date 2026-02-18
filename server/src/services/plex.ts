@@ -54,9 +54,16 @@ async function plexFetch(path: string, token: string): Promise<any> {
   return res.json();
 }
 
-/** Validate a Plex token and return the authenticated user */
+/** Validate a Plex token and return the authenticated user (via plex.tv, not local server) */
 export async function validatePlexToken(token: string): Promise<PlexUser> {
-  const data = await plexFetch('/api/v2/user', token);
+  const res = await fetch('https://plex.tv/api/v2/user', {
+    headers: {
+      ...plexHeaders(token),
+      Accept: 'application/json',
+    },
+  });
+  if (!res.ok) throw new Error(`Plex token validation failed: ${res.status}`);
+  const data = await res.json();
   return {
     id: String(data.id),
     username: data.username || data.title,
