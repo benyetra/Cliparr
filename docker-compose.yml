@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  cliparr:
+    build: .
+    container_name: cliparr
+    restart: unless-stopped
+    ports:
+      - 7879:7879
+    environment:
+      - PLEX_URL=http://plex:32400          # or http://host.docker.internal:32400
+      - CLIPARR_SECRET=change-me-to-a-random-secret
+      - CLIPARR_BASE_URL=http://localhost:7879
+      - DEFAULT_TTL_HOURS=24
+      - MAX_TTL_HOURS=168
+      - MAX_CLIP_DURATION=180
+      - MAX_CONCURRENT_TRANSCODES=2
+      - CLEANUP_GRACE_HOURS=24
+      - HARDWARE_TRANSCODE=none
+    volumes:
+      - ./config:/config
+      - ./clips:/clips
+      - /path/to/plex/media:/media:ro        # Read-only access to Plex media files
+    # Uncomment for Intel QSV / VA-API GPU transcoding:
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # Uncomment for NVIDIA GPU transcoding:
+    # runtime: nvidia
