@@ -95,18 +95,121 @@ environment:
   - CLIPARR_BASE_URL=https://clips.yourdomain.com # your public-facing URL
 ```
 
-### 2. Set the media path
+### 2. Map your media libraries
 
-Map your Plex media directory as a read-only volume:
+This is the most important step. Cliparr needs **direct filesystem access** to the same media files that Plex knows about. When you create a clip, Cliparr asks Plex "where is this file?" and Plex responds with an absolute path like `/data/Movies/Interstellar (2014)/Interstellar.mkv`. Cliparr then hands that exact path to FFmpeg. If FFmpeg can't find the file at that path, transcoding fails.
+
+**The key rule: the file paths Plex reports must be valid paths inside the Cliparr container.**
+
+#### Finding your Plex media paths
+
+Check what paths Plex is using for your libraries. In Plex, go to **Settings > Libraries** and note the folder paths for each library. Or check your Plex `docker-compose.yml` if Plex runs in Docker.
+
+Common setups:
+
+#### Single drive, everything under one folder
+
+If all your media lives under one root like `/mnt/media`:
+
+```
+/mnt/media/
+  Movies/
+  TV Shows/
+  Music Videos/
+```
 
 ```yaml
 volumes:
   - ./config:/config
   - ./clips:/clips
-  - /path/to/your/plex/media:/media:ro
+  - /mnt/media:/mnt/media:ro
 ```
 
-The media path inside the container must match or be resolvable from the file paths that Plex reports for your media items.
+#### Multiple external drives
+
+If your media is split across several drives (very common):
+
+```
+/mnt/disk1/Movies/
+/mnt/disk2/Movies/
+/mnt/disk3/TV Shows/
+/mnt/disk4/TV Shows/
+```
+
+Mount each drive separately. Every path Plex references must exist inside the container:
+
+```yaml
+volumes:
+  - ./config:/config
+  - ./clips:/clips
+  - /mnt/disk1:/mnt/disk1:ro
+  - /mnt/disk2:/mnt/disk2:ro
+  - /mnt/disk3:/mnt/disk3:ro
+  - /mnt/disk4:/mnt/disk4:ro
+```
+
+#### Plex runs in Docker too
+
+If Plex is also in Docker, you need to match the paths that Plex sees *inside its container*. For example, if your Plex `docker-compose.yml` maps volumes like this:
+
+```yaml
+# Your Plex docker-compose.yml
+services:
+  plex:
+    volumes:
+      - /mnt/disk1/Movies:/data/Movies
+      - /mnt/disk2/TV:/data/TV
+```
+
+Then Plex reports file paths starting with `/data/...`. Cliparr needs to see those same `/data/...` paths:
+
+```yaml
+# Cliparr docker-compose.yml
+services:
+  cliparr:
+    volumes:
+      - ./config:/config
+      - ./clips:/clips
+      - /mnt/disk1/Movies:/data/Movies:ro
+      - /mnt/disk2/TV:/data/TV:ro
+```
+
+The left side is where the files actually are on the host. The right side must match what Plex reports. The `:ro` flag means read-only -- Cliparr never modifies your media files.
+
+#### Plex runs natively (not Docker)
+
+If Plex is installed directly on the host OS, it uses real host paths like `/Volumes/Media Drive/Movies` (macOS) or `/mnt/media/Movies` (Linux). Mount those exact paths into the Cliparr container:
+
+```yaml
+# macOS example with an external drive
+volumes:
+  - ./config:/config
+  - ./clips:/clips
+  - /Volumes/Media Drive:/Volumes/Media Drive:ro
+
+# Linux example with multiple mount points
+volumes:
+  - ./config:/config
+  - ./clips:/clips
+  - /mnt/media:/mnt/media:ro
+  - /mnt/external-hdd:/mnt/external-hdd:ro
+```
+
+#### How to verify your paths are correct
+
+After starting Cliparr, you can verify the mapping by checking what Plex reports for any media item:
+
+```bash
+# Ask Plex for the file path of a specific item (replace TOKEN and ratingKey)
+curl -s "http://localhost:32400/library/metadata/12345?X-Plex-Token=YOUR_TOKEN" \
+  | grep -o 'file="[^"]*"'
+# Output: file="/data/Movies/Interstellar (2014)/Interstellar.mkv"
+
+# Then verify that path exists inside the Cliparr container
+docker exec cliparr ls -la "/data/Movies/Interstellar (2014)/Interstellar.mkv"
+```
+
+If the `ls` command finds the file, your volume mapping is correct.
 
 ### 3. Start
 
