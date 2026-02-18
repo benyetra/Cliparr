@@ -5,7 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import fstatic from '@fastify/static';
 import { config } from './config.js';
 import { resolve } from 'path';
-import { mkdirSync } from 'fs';
+import { mkdirSync, existsSync } from 'fs';
 
 // Ensure directories exist
 mkdirSync(config.paths.config, { recursive: true });
@@ -77,24 +77,23 @@ await app.register(libraryRoutes);
 await app.register(settingsRoutes);
 await app.register(shareRoutes);
 
-// Serve the frontend SPA for non-API, non-stream routes
-// In production, static files are served from the web build
+// Serve the frontend SPA
 const webDistPath = resolve(import.meta.dirname, '../../web/dist');
-try {
-  // Serve the assets subdirectory at /assets/ prefix
-  await app.register(fstatic, {
-    root: resolve(webDistPath, 'assets'),
-    prefix: '/assets/',
-    decorateReply: false,
-  });
-} catch {
-  // Web dist may not exist in dev
-}
+const webAssetsPath = resolve(webDistPath, 'assets');
 
-// SPA fallback - serve index.html for all unmatched routes (except API/stream/clips)
+console.log(`Web dist path: ${webDistPath} (exists: ${existsSync(webDistPath)})`);
+console.log(`Web assets path: ${webAssetsPath} (exists: ${existsSync(webAssetsPath)})`);
+
+// Serve frontend assets via explicit route (more reliable than second @fastify/static instance)
+app.get('/assets/*', async (request, reply) => {
+  const assetFile = (request.params as Record<string, string>)['*'];
+  return reply.sendFile(assetFile, webAssetsPath);
+});
+
+// SPA fallback - serve index.html for all unmatched routes (except API/stream/clips/assets)
 app.setNotFoundHandler(async (request, reply) => {
   const { url } = request;
-  if (url.startsWith('/api/') || url.startsWith('/stream/') || url.startsWith('/clips/') || url.startsWith('/c/')) {
+  if (url.startsWith('/api/') || url.startsWith('/stream/') || url.startsWith('/clips/') || url.startsWith('/c/') || url.startsWith('/assets/')) {
     return reply.status(404).send({ error: 'Not found' });
   }
   return reply.sendFile('index.html', webDistPath);
