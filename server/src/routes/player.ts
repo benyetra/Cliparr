@@ -71,6 +71,15 @@ export default async function playerRoutes(app: FastifyInstance) {
 </head>
 <body>
   <div id="root"></div>
+  ${isExpired ? `
+  <noscript>
+    <div style="text-align:center;padding:2em;font-family:system-ui;color:#fff;background:#1a1a2e;">
+      <h1>This clip has expired</h1>
+      <p>The clip you are looking for is no longer available. Clips expire after their configured time-to-live.</p>
+    </div>
+  </noscript>
+  <!-- expired clip indicator -->
+  ` : ''}
   <script type="module" src="/assets/player.js"></script>
 </body>
 </html>`;

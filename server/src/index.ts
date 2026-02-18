@@ -29,8 +29,20 @@ await app.register(cookie);
 
 // Rate limiting
 await app.register(rateLimit, {
+  global: true,
   max: 100,
   timeWindow: '1 minute',
+  addHeadersOnExceeding: {
+    'x-ratelimit-limit': true,
+    'x-ratelimit-remaining': true,
+    'x-ratelimit-reset': true,
+  },
+  addHeaders: {
+    'x-ratelimit-limit': true,
+    'x-ratelimit-remaining': true,
+    'x-ratelimit-reset': true,
+    'retry-after': true,
+  },
 });
 
 // Security headers
