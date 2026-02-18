@@ -36,6 +36,7 @@ export function Library() {
   function handleItemClick(item: any) {
     if (item.type === 'show') {
       setSelectedShow(item.ratingKey);
+      setSelectedSeason(null);
       loadSeasons(item.ratingKey);
     } else if (item.type === 'season') {
       setSelectedSeason(item.ratingKey);
@@ -48,19 +49,19 @@ export function Library() {
 
   const loading = sectionsLoading || itemsLoading || seasonsLoading || episodesLoading || searchLoading;
 
-  // Determine what to show
+  // Determine what to show — drill-down state takes priority over search results
   let displayItems: any[] = [];
   let title = 'Library';
 
-  if (searchQuery && results.length > 0) {
-    displayItems = results;
-    title = `Search: "${searchQuery}"`;
-  } else if (selectedSeason) {
+  if (selectedSeason) {
     displayItems = episodes;
     title = 'Episodes';
   } else if (selectedShow) {
     displayItems = seasons;
     title = 'Seasons';
+  } else if (searchQuery && results.length > 0) {
+    displayItems = results;
+    title = `Search: "${searchQuery}"`;
   } else if (sectionKey) {
     displayItems = items;
     const section = sections.find((s) => s.key === sectionKey);
@@ -71,14 +72,16 @@ export function Library() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {(selectedShow || selectedSeason) && (
+          {(selectedShow || selectedSeason || (searchQuery && results.length > 0)) && (
             <button
               className="btn-sm btn-secondary"
               onClick={() => {
                 if (selectedSeason) {
                   setSelectedSeason(null);
-                } else {
+                } else if (selectedShow) {
                   setSelectedShow(null);
+                } else {
+                  setSearchQuery('');
                 }
               }}
             >

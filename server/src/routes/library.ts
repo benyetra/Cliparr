@@ -42,7 +42,12 @@ export default async function libraryRoutes(app: FastifyInstance) {
     { preHandler: [requireAuth] },
     async (request, reply) => {
       const seasons = await getShowSeasons(request.plexToken!, request.params.ratingKey);
-      return reply.send({ seasons });
+      const enriched = seasons.map((s: any) => ({
+        ...s,
+        type: 'season',
+        thumbUrl: s.thumb ? getThumbnailUrl(request.plexToken!, s.thumb) : null,
+      }));
+      return reply.send({ seasons: enriched });
     },
   );
 
@@ -52,7 +57,11 @@ export default async function libraryRoutes(app: FastifyInstance) {
     { preHandler: [requireAuth] },
     async (request, reply) => {
       const episodes = await getSeasonEpisodes(request.plexToken!, request.params.ratingKey);
-      return reply.send({ episodes });
+      const enriched = episodes.map((ep: any) => ({
+        ...ep,
+        thumbUrl: ep.thumb ? getThumbnailUrl(request.plexToken!, ep.thumb) : null,
+      }));
+      return reply.send({ episodes: enriched });
     },
   );
 
@@ -77,7 +86,11 @@ export default async function libraryRoutes(app: FastifyInstance) {
       const query = request.query.q;
       if (!query) return reply.status(400).send({ error: 'Query required' });
       const results = await searchMedia(request.plexToken!, query);
-      return reply.send({ results });
+      const enriched = results.map((item) => ({
+        ...item,
+        thumbUrl: item.thumb ? getThumbnailUrl(request.plexToken!, item.thumb) : null,
+      }));
+      return reply.send({ results: enriched });
     },
   );
 }
