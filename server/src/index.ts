@@ -81,8 +81,9 @@ await app.register(shareRoutes);
 // In production, static files are served from the web build
 const webDistPath = resolve(import.meta.dirname, '../../web/dist');
 try {
+  // Serve the assets subdirectory at /assets/ prefix
   await app.register(fstatic, {
-    root: webDistPath,
+    root: resolve(webDistPath, 'assets'),
     prefix: '/assets/',
     decorateReply: false,
   });
