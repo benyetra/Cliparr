@@ -3,7 +3,8 @@ import { db, schema } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 import { config } from '../config.js';
 import { verifyClipToken, generateSegmentToken, verifySegmentToken } from '../services/token.js';
-import { readFile } from 'fs/promises';
+import { readFile, stat } from 'fs/promises';
+import { createReadStream } from 'fs';
 import { join } from 'path';
 import { createHash } from 'crypto';
 import { nanoid } from 'nanoid';
@@ -102,6 +103,50 @@ export default async function streamRoutes(app: FastifyInstance) {
         return reply.send(data);
       } catch {
         return reply.status(404).send({ error: 'Segment not found' });
+      }
+    },
+  );
+
+  /** Serve MP4 for OG video embeds (iMessage inline playback, social previews) */
+  app.get<{ Params: { clipId: string }; Querystring: { t: string } }>(
+    '/stream/:clipId/video.mp4',
+    async (request, reply) => {
+      const { clipId } = request.params;
+      const token = request.query.t;
+
+      const clip = await validateClipAccess(clipId, token);
+      if (!clip) {
+        return reply.status(410).send({ error: 'Clip expired or not found' });
+      }
+
+      const mp4Path = join(config.paths.clips, clipId, 'clip.mp4');
+      try {
+        const fileStat = await stat(mp4Path);
+        const range = request.headers.range;
+
+        if (range) {
+          // Support range requests for seeking/streaming
+          const parts = range.replace(/bytes=/, '').split('-');
+          const start = parseInt(parts[0], 10);
+          const end = parts[1] ? parseInt(parts[1], 10) : fileStat.size - 1;
+          const chunkSize = end - start + 1;
+
+          reply.status(206);
+          reply.header('Content-Range', `bytes ${start}-${end}/${fileStat.size}`);
+          reply.header('Accept-Ranges', 'bytes');
+          reply.header('Content-Length', chunkSize);
+          reply.header('Content-Type', 'video/mp4');
+          reply.header('Cache-Control', 'public, max-age=3600');
+          return reply.send(createReadStream(mp4Path, { start, end }));
+        }
+
+        reply.header('Content-Type', 'video/mp4');
+        reply.header('Content-Length', fileStat.size);
+        reply.header('Accept-Ranges', 'bytes');
+        reply.header('Cache-Control', 'public, max-age=3600');
+        return reply.send(createReadStream(mp4Path));
+      } catch {
+        return reply.status(404).send({ error: 'MP4 not available' });
       }
     },
   );

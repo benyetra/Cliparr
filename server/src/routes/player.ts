@@ -74,12 +74,26 @@ export default async function playerRoutes(app: FastifyInstance) {
   ${thumbnailUrl ? `<meta property="og:image" content="${thumbnailUrl}" />` : ''}
   <meta property="og:url" content="${config.baseUrl}/c/${clipId}?t=${token || ''}" />
   <meta property="og:site_name" content="Cliparr" />
+  ${isValid ? `
+  <meta property="og:video" content="${config.baseUrl}/stream/${clipId}/video.mp4?t=${token}" />
+  <meta property="og:video:secure_url" content="${config.baseUrl}/stream/${clipId}/video.mp4?t=${token}" />
+  <meta property="og:video:type" content="video/mp4" />
+  <meta property="og:video:width" content="1280" />
+  <meta property="og:video:height" content="720" />
+  ` : ''}
 
   <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:card" content="${isValid ? 'player' : 'summary_large_image'}" />
   <meta name="twitter:title" content="${escapeHtml(title)}" />
   <meta name="twitter:description" content="Watch this ${durationFormatted} clip shared via Cliparr" />
   ${thumbnailUrl ? `<meta name="twitter:image" content="${thumbnailUrl}" />` : ''}
+  ${isValid ? `
+  <meta name="twitter:player" content="${config.baseUrl}/c/${clipId}?t=${token}" />
+  <meta name="twitter:player:width" content="1280" />
+  <meta name="twitter:player:height" content="720" />
+  <meta name="twitter:player:stream" content="${config.baseUrl}/stream/${clipId}/video.mp4?t=${token}" />
+  <meta name="twitter:player:stream:content_type" content="video/mp4" />
+  ` : ''}
 
   <script>
     window.__CLIP_DATA__ = ${clipDataJson};

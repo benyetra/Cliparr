@@ -112,6 +112,21 @@ async function executeTranscode(job: TranscodeJob): Promise<TranscodeResult> {
 
   await runFFmpeg(args);
 
+  // Generate a shareable MP4 (720p) for OG video embeds (iMessage, etc.)
+  const mp4Path = join(outputDir, 'clip.mp4');
+  console.log(`[transcode] Generating MP4 for clip ${clipId}`);
+  await runFFmpeg([
+    '-ss', startSec,
+    '-t', durationSec,
+    '-i', filePath,
+    '-c:v', 'libx264', '-preset', 'ultrafast', '-b:v', '2500k', '-maxrate', '2750k', '-bufsize', '5000k',
+    '-vf', 'scale=-2:720',
+    '-c:a', 'aac', '-b:a', '128k', '-ac', '2',
+    '-movflags', '+faststart',
+    '-y',
+    mp4Path,
+  ]);
+
   return {
     hlsPath: clipId,
     thumbnailPath: `${clipId}/thumb.jpg`,
