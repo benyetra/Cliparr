@@ -4,9 +4,11 @@ interface TimelineScrubberProps {
   totalDurationMs: number;
   startMs: number;
   endMs: number;
+  currentTimeMs?: number;
   maxDurationMs: number;
   onStartChange: (ms: number) => void;
   onEndChange: (ms: number) => void;
+  onSeek?: (ms: number) => void;
 }
 
 function formatTime(ms: number): string {
@@ -24,9 +26,11 @@ export function TimelineScrubber({
   totalDurationMs,
   startMs,
   endMs,
+  currentTimeMs = 0,
   maxDurationMs,
   onStartChange,
   onEndChange,
+  onSeek,
 }: TimelineScrubberProps) {
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -42,14 +46,18 @@ export function TimelineScrubber({
 
   function handleBarClick(e: React.MouseEvent) {
     const ms = getMouseMs(e);
-    // Click closer to start or end handle?
+    // If clicking near a handle, adjust that handle. Otherwise, seek the video.
     const distToStart = Math.abs(ms - startMs);
     const distToEnd = Math.abs(ms - endMs);
-    if (distToStart < distToEnd) {
+    const threshold = totalDurationMs * 0.02; // 2% of total duration
+
+    if (distToStart < threshold && distToStart < distToEnd) {
       onStartChange(Math.min(ms, endMs - 1000));
-    } else {
+    } else if (distToEnd < threshold) {
       const newEnd = Math.min(ms, startMs + maxDurationMs);
       onEndChange(Math.max(newEnd, startMs + 1000));
+    } else if (onSeek) {
+      onSeek(ms);
     }
   }
 
@@ -62,7 +70,6 @@ export function TimelineScrubber({
         const ms = getMouseMs(ev);
         if (type === 'start') {
           const clamped = Math.max(0, Math.min(ms, endMs - 1000));
-          // Enforce max duration
           if (endMs - clamped > maxDurationMs) return;
           onStartChange(clamped);
         } else {
@@ -86,13 +93,14 @@ export function TimelineScrubber({
   }
 
   const durationMs = endMs - startMs;
-  const durationSec = Math.round(durationMs / 1000);
-  const maxSec = maxDurationMs / 1000;
 
   return (
     <div className="timeline-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
         <span>IN: {formatTime(startMs)}</span>
+        <span style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>
+          {formatTime(currentTimeMs)}
+        </span>
         <span>OUT: {formatTime(endMs)}</span>
       </div>
 
@@ -106,11 +114,27 @@ export function TimelineScrubber({
           }}
         />
 
+        {/* Playhead indicator */}
+        <div
+          style={{
+            position: 'absolute',
+            left: `${msToPercent(currentTimeMs)}%`,
+            top: -2,
+            bottom: -2,
+            width: 2,
+            background: 'var(--accent)',
+            zIndex: 3,
+            pointerEvents: 'none',
+            transition: 'left 0.1s linear',
+          }}
+        />
+
         {/* Start handle */}
         <div
           className="timeline-handle"
           style={{ left: `calc(${msToPercent(startMs)}% - 6px)` }}
           onMouseDown={startDrag('start')}
+          title="Drag to set IN point"
         />
 
         {/* End handle */}
@@ -118,6 +142,7 @@ export function TimelineScrubber({
           className="timeline-handle"
           style={{ left: `calc(${msToPercent(endMs)}% - 6px)` }}
           onMouseDown={startDrag('end')}
+          title="Drag to set OUT point"
         />
       </div>
 

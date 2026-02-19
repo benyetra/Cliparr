@@ -1,24 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { library } from '../lib/api';
 import { useClipCreate } from '../hooks/useClips';
 import { TimelineScrubber } from '../components/TimelineScrubber';
-import { VideoPreview } from '../components/VideoPreview';
+import { VideoPreview, type VideoPreviewHandle } from '../components/VideoPreview';
 import { ShareDialog } from '../components/ShareDialog';
 
 export function ClipEditor() {
   const { ratingKey } = useParams<{ ratingKey: string }>();
   const navigate = useNavigate();
   const { creating, result, create } = useClipCreate();
+  const videoRef = useRef<VideoPreviewHandle>(null);
 
   const [metadata, setMetadata] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [startMs, setStartMs] = useState(0);
   const [endMs, setEndMs] = useState(30000); // Default 30 seconds
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [title, setTitle] = useState('');
   const [ttlHours, setTtlHours] = useState(24);
   const [maxViews, setMaxViews] = useState<number | null>(null);
   const [showShare, setShowShare] = useState(false);
+
+  const handleTimeUpdate = useCallback((ms: number) => {
+    setCurrentTimeMs(ms);
+  }, []);
 
   useEffect(() => {
     if (!ratingKey) return;
@@ -75,16 +81,44 @@ export function ClipEditor() {
       </div>
 
       {/* Video Preview */}
-      <VideoPreview thumbUrl={metadata.thumbUrl} />
+      <VideoPreview
+        ref={videoRef}
+        ratingKey={ratingKey!}
+        thumbUrl={metadata.thumbUrl}
+        startMs={startMs}
+        endMs={endMs}
+        onTimeUpdate={handleTimeUpdate}
+      />
+
+      {/* Quick seek buttons */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button className="btn-sm btn-secondary" onClick={() => videoRef.current?.seekTo(startMs)}>
+          Jump to IN
+        </button>
+        <button className="btn-sm btn-secondary" onClick={() => videoRef.current?.seekTo(endMs)}>
+          Jump to OUT
+        </button>
+        <button className="btn-sm btn-secondary" onClick={() => setStartMs(Math.round(currentTimeMs))}>
+          Set IN to current
+        </button>
+        <button className="btn-sm btn-secondary" onClick={() => {
+          const newEnd = Math.min(Math.round(currentTimeMs), startMs + maxDurationMs);
+          if (newEnd > startMs) setEndMs(newEnd);
+        }}>
+          Set OUT to current
+        </button>
+      </div>
 
       {/* Timeline Scrubber */}
       <TimelineScrubber
         totalDurationMs={metadata.duration || 0}
         startMs={startMs}
         endMs={endMs}
+        currentTimeMs={currentTimeMs}
         maxDurationMs={maxDurationMs}
         onStartChange={setStartMs}
         onEndChange={setEndMs}
+        onSeek={(ms) => videoRef.current?.seekTo(ms)}
       />
 
       {/* Clip Configuration */}

@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { config } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
   getLibrarySections,
@@ -91,6 +92,85 @@ export default async function libraryRoutes(app: FastifyInstance) {
         thumbUrl: item.thumb ? getThumbnailUrl(request.plexToken!, item.thumb) : null,
       }));
       return reply.send({ results: enriched });
+    },
+  );
+
+  /** Proxy Plex video stream for preview playback */
+  app.get<{ Params: { ratingKey: string }; Querystring: { offset?: string } }>(
+    '/api/v1/library/preview/:ratingKey',
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const { ratingKey } = request.params;
+      const offset = request.query.offset || '0';
+      const plexToken = request.plexToken!;
+
+      // Use Plex's universal transcoder to get a browser-compatible stream
+      const params = new URLSearchParams({
+        path: `/library/metadata/${ratingKey}`,
+        mediaIndex: '0',
+        partIndex: '0',
+        protocol: 'http',
+        offset,
+        fastSeek: '1',
+        directPlay: '0',
+        directStream: '1',
+        videoQuality: '100',
+        maxVideoBitrate: '4000',
+        subtitleSize: '100',
+        audioBoost: '100',
+        'X-Plex-Platform': 'Chrome',
+        'X-Plex-Token': plexToken,
+        'X-Plex-Client-Identifier': 'cliparr-app',
+        'X-Plex-Product': 'Cliparr',
+      });
+
+      const plexUrl = `${config.plex.url}/video/:/transcode/universal/start.mp4?${params}`;
+
+      try {
+        const plexRes = await fetch(plexUrl, {
+          headers: { 'X-Plex-Token': plexToken },
+        });
+
+        if (!plexRes.ok) {
+          return reply.status(plexRes.status).send({ error: 'Plex transcode failed' });
+        }
+
+        reply.header('Content-Type', plexRes.headers.get('content-type') || 'video/mp4');
+        reply.header('Accept-Ranges', 'bytes');
+        if (plexRes.headers.get('content-length')) {
+          reply.header('Content-Length', plexRes.headers.get('content-length')!);
+        }
+
+        // @ts-ignore - pipe the readable stream
+        return reply.send(plexRes.body);
+      } catch (err) {
+        app.log.error(err, 'Failed to proxy Plex preview stream');
+        return reply.status(502).send({ error: 'Failed to connect to Plex' });
+      }
+    },
+  );
+
+  /** Proxy Plex thumbnail images */
+  app.get<{ Params: { '*': string }; Querystring: Record<string, string> }>(
+    '/api/v1/library/thumb/*',
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const thumbPath = '/' + (request.params as any)['*'];
+      const plexUrl = `${config.plex.url}${thumbPath}?X-Plex-Token=${request.plexToken!}`;
+
+      try {
+        const plexRes = await fetch(plexUrl);
+        if (!plexRes.ok) {
+          return reply.status(plexRes.status).send({ error: 'Plex thumb failed' });
+        }
+
+        reply.header('Content-Type', plexRes.headers.get('content-type') || 'image/jpeg');
+        reply.header('Cache-Control', 'public, max-age=86400');
+        // @ts-ignore
+        return reply.send(plexRes.body);
+      } catch {
+        return reply.status(502).send({ error: 'Failed to fetch thumbnail' });
+      }
     },
   );
 }
