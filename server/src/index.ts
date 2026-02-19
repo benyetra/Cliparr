@@ -126,7 +126,7 @@ app.get('/assets/*', async (request, reply) => {
 // SPA fallback - serve index.html for all unmatched routes (except API/stream/clips/assets)
 app.setNotFoundHandler(async (request, reply) => {
   const { url } = request;
-  if (url.startsWith('/api/') || url.startsWith('/stream/') || url.startsWith('/clips/') || url.startsWith('/c/') || url.startsWith('/assets/')) {
+  if (url.startsWith('/api/') || url.startsWith('/stream/') || url.startsWith('/clips/') || url.startsWith('/assets/')) {
     return reply.status(404).send({ error: 'Not found' });
   }
   try {

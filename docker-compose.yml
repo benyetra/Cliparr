@@ -8,13 +8,18 @@ services:
     environment:
       - PLEX_URL=http://plex:32400          # or http://host.docker.internal:32400
       - CLIPARR_SECRET=change-me-to-a-random-secret
-      - CLIPARR_BASE_URL=http://localhost:7879
+      - CLIPARR_BASE_URL=https://clips.yetimonstah.com  # Must match how users access Cliparr (no port if behind reverse proxy)
       - DEFAULT_TTL_HOURS=24
       - MAX_TTL_HOURS=168
       - MAX_CLIP_DURATION=180
       - MAX_CONCURRENT_TRANSCODES=2
       - CLEANUP_GRACE_HOURS=24
       - HARDWARE_TRANSCODE=none
+      # Path mapping: set PLEX_MEDIA_PATH to the path prefix Plex uses for media files.
+      # Cliparr will rewrite those paths to /media (the container mount).
+      # Example: if Plex stores files at /data/media/Movies/Film.mkv,
+      # set PLEX_MEDIA_PATH=/data/media so it maps to /media/Movies/Film.mkv
+      - PLEX_MEDIA_PATH=/path/to/plex/media
     volumes:
       - ./config:/config
       - ./clips:/clips

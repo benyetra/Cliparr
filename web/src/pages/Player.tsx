@@ -6,6 +6,7 @@ interface ClipData {
   title?: string;
   mediaTitle?: string;
   durationMs?: number;
+  status?: string;
   isExpired: boolean;
   isValid: boolean;
   streamUrl: string | null;
@@ -110,6 +111,48 @@ export function Player() {
           <p style={{ marginTop: 16, fontSize: 13, color: 'var(--text-muted)' }}>
             Shared via Cliparr for Plex
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (clipData.status === 'transcoding' || clipData.status === 'pending') {
+    return (
+      <div className="player-page">
+        <div className="player-container">
+          <div style={{ padding: 60, textAlign: 'center' }}>
+            <div className="spinner" style={{ marginBottom: 16 }} />
+            <h2>Clip is still being prepared...</h2>
+            <p style={{ color: 'var(--text-secondary)', marginTop: 8 }}>
+              This clip is currently being transcoded. Please try again in a moment.
+            </p>
+            <button className="btn-primary" style={{ marginTop: 20 }} onClick={() => window.location.reload()}>
+              Refresh
+            </button>
+          </div>
+          <div className="player-info">
+            {clipData.title && <h1>{clipData.title}</h1>}
+            <p className="player-branding">Shared via Cliparr for Plex</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (clipData.status === 'failed') {
+    return (
+      <div className="player-page">
+        <div className="player-container">
+          <div style={{ padding: 60, textAlign: 'center' }}>
+            <h2 style={{ color: 'var(--danger)' }}>Clip generation failed</h2>
+            <p style={{ color: 'var(--text-secondary)', marginTop: 8 }}>
+              There was an error preparing this clip. The owner may need to recreate it.
+            </p>
+          </div>
+          <div className="player-info">
+            {clipData.title && <h1>{clipData.title}</h1>}
+            <p className="player-branding">Shared via Cliparr for Plex</p>
+          </div>
         </div>
       </div>
     );

@@ -28,5 +28,10 @@ export const config = {
     clips: resolve(process.env.CLIPS_DIR || './clips'),
     media: process.env.MEDIA_DIR || '/media',
     db: resolve(process.env.CONFIG_DIR || './config', 'cliparr.db'),
+    // Path mapping: Plex reports file paths from its own filesystem.
+    // PLEX_MEDIA_PATH is the prefix on the Plex server side (e.g., /data/media)
+    // MEDIA_DIR is where those files are mounted in the Cliparr container (e.g., /media)
+    // If set, file paths from Plex will be rewritten: /data/media/Movie.mkv → /media/Movie.mkv
+    plexMediaPath: process.env.PLEX_MEDIA_PATH || '',
   },
 } as const;

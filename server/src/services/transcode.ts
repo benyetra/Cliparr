@@ -41,12 +41,24 @@ export function queueTranscode(job: TranscodeJob): Promise<TranscodeResult> {
   });
 }
 
+/** Translate a Plex file path to the local container path */
+function resolveMediaPath(plexFilePath: string): string {
+  const plexPrefix = config.paths.plexMediaPath;
+  if (plexPrefix && plexFilePath.startsWith(plexPrefix)) {
+    return config.paths.media + plexFilePath.slice(plexPrefix.length);
+  }
+  return plexFilePath;
+}
+
 /** Execute FFmpeg transcoding to produce HLS output at multiple qualities */
 async function executeTranscode(job: TranscodeJob): Promise<TranscodeResult> {
-  const { clipId, filePath, startMs, endMs } = job;
+  const { clipId, startMs, endMs } = job;
+  const filePath = resolveMediaPath(job.filePath);
   const durationMs = endMs - startMs;
   const outputDir = join(config.paths.clips, clipId);
   await mkdir(outputDir, { recursive: true });
+
+  console.log(`[transcode] Starting clip ${clipId}: file=${filePath}, start=${startMs}ms, end=${endMs}ms`);
 
   const startSec = (startMs / 1000).toFixed(3);
   const durationSec = (durationMs / 1000).toFixed(3);
