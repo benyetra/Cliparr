@@ -6,7 +6,7 @@ export interface VideoPreviewHandle {
 }
 
 interface VideoPreviewProps {
-  ratingKey: string;
+  directStreamUrl: string | null;
   thumbUrl?: string | null;
   startMs?: number;
   endMs?: number;
@@ -14,10 +14,8 @@ interface VideoPreviewProps {
 }
 
 export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
-  function VideoPreview({ ratingKey, thumbUrl, startMs, endMs, onTimeUpdate }, ref) {
+  function VideoPreview({ directStreamUrl, thumbUrl, startMs, endMs, onTimeUpdate }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null);
-
-    const previewUrl = `/api/v1/library/preview/${ratingKey}`;
 
     useImperativeHandle(ref, () => ({
       seekTo(ms: number) {
@@ -49,14 +47,31 @@ export const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
         maxWidth: 800,
         position: 'relative',
       }}>
-        <video
-          ref={videoRef}
-          src={previewUrl}
-          poster={thumbUrl || undefined}
-          controls
-          preload="metadata"
-          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-        />
+        {directStreamUrl ? (
+          <video
+            ref={videoRef}
+            src={directStreamUrl}
+            poster={thumbUrl || undefined}
+            controls
+            preload="metadata"
+            crossOrigin="anonymous"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        ) : (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            {thumbUrl ? (
+              <img src={thumbUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span style={{ color: 'var(--text-muted)' }}>No preview available</span>
+            )}
+          </div>
+        )}
         {startMs != null && endMs != null && (
           <div style={{
             position: 'absolute',

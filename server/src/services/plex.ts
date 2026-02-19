@@ -39,8 +39,10 @@ export interface PlexMediaItem {
   index?: number; // episode number
   media?: Array<{
     Part: Array<{
+      key?: string;
       file: string;
       duration: number;
+      container?: string;
     }>;
   }>;
 }
@@ -206,8 +208,10 @@ function mapMetadata(m: any): PlexMediaItem {
     index: m.index,
     media: m.Media?.map((media: any) => ({
       Part: media.Part?.map((part: any) => ({
+        key: part.key,
         file: part.file,
         duration: part.duration,
+        container: part.container,
       })) || [],
     })),
   };

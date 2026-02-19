@@ -66,15 +66,27 @@ export default async function libraryRoutes(app: FastifyInstance) {
     },
   );
 
-  /** Get detailed metadata for a single media item */
+  /** Get detailed metadata for a single media item (includes preview stream URL) */
   app.get<{ Params: { ratingKey: string } }>(
     '/api/v1/library/metadata/:ratingKey',
     { preHandler: [requireAuth] },
     async (request, reply) => {
       const metadata = await getMediaMetadata(request.plexToken!, request.params.ratingKey);
+      const plexToken = request.plexToken!;
+
+      // Build direct Plex stream URL for video preview
+      // The browser connects directly to Plex on the local network
+      let directStreamUrl: string | null = null;
+      const partKey = metadata.media?.[0]?.Part?.[0]?.key;
+      if (partKey) {
+        // Use the part key to stream directly from Plex
+        directStreamUrl = `${config.plex.url}${partKey}?X-Plex-Token=${plexToken}`;
+      }
+
       return reply.send({
         ...metadata,
         thumbUrl: metadata.thumb ? getThumbnailUrl(request.plexToken!, metadata.thumb) : null,
+        directStreamUrl,
       });
     },
   );
@@ -92,61 +104,6 @@ export default async function libraryRoutes(app: FastifyInstance) {
         thumbUrl: item.thumb ? getThumbnailUrl(request.plexToken!, item.thumb) : null,
       }));
       return reply.send({ results: enriched });
-    },
-  );
-
-  /** Proxy Plex video stream for preview playback */
-  app.get<{ Params: { ratingKey: string }; Querystring: { offset?: string } }>(
-    '/api/v1/library/preview/:ratingKey',
-    { preHandler: [requireAuth] },
-    async (request, reply) => {
-      const { ratingKey } = request.params;
-      const offset = request.query.offset || '0';
-      const plexToken = request.plexToken!;
-
-      // Use Plex's universal transcoder to get a browser-compatible stream
-      const params = new URLSearchParams({
-        path: `/library/metadata/${ratingKey}`,
-        mediaIndex: '0',
-        partIndex: '0',
-        protocol: 'http',
-        offset,
-        fastSeek: '1',
-        directPlay: '0',
-        directStream: '1',
-        videoQuality: '100',
-        maxVideoBitrate: '4000',
-        subtitleSize: '100',
-        audioBoost: '100',
-        'X-Plex-Platform': 'Chrome',
-        'X-Plex-Token': plexToken,
-        'X-Plex-Client-Identifier': 'cliparr-app',
-        'X-Plex-Product': 'Cliparr',
-      });
-
-      const plexUrl = `${config.plex.url}/video/:/transcode/universal/start.mp4?${params}`;
-
-      try {
-        const plexRes = await fetch(plexUrl, {
-          headers: { 'X-Plex-Token': plexToken },
-        });
-
-        if (!plexRes.ok) {
-          return reply.status(plexRes.status).send({ error: 'Plex transcode failed' });
-        }
-
-        reply.header('Content-Type', plexRes.headers.get('content-type') || 'video/mp4');
-        reply.header('Accept-Ranges', 'bytes');
-        if (plexRes.headers.get('content-length')) {
-          reply.header('Content-Length', plexRes.headers.get('content-length')!);
-        }
-
-        // @ts-ignore - pipe the readable stream
-        return reply.send(plexRes.body);
-      } catch (err) {
-        app.log.error(err, 'Failed to proxy Plex preview stream');
-        return reply.status(502).send({ error: 'Failed to connect to Plex' });
-      }
     },
   );
 

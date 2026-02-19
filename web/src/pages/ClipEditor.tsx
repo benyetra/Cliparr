@@ -83,7 +83,7 @@ export function ClipEditor() {
       {/* Video Preview */}
       <VideoPreview
         ref={videoRef}
-        ratingKey={ratingKey!}
+        directStreamUrl={metadata.directStreamUrl}
         thumbUrl={metadata.thumbUrl}
         startMs={startMs}
         endMs={endMs}
