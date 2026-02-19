@@ -107,17 +107,23 @@ export default async function streamRoutes(app: FastifyInstance) {
     },
   );
 
-  /** Serve MP4 for OG video embeds (iMessage inline playback, social previews) */
-  app.get<{ Params: { clipId: string }; Querystring: { t: string } }>(
+  /** Serve MP4 for OG video embeds (iMessage inline playback, social previews)
+   *  Publicly accessible by clipId only (no token) — clipId is an unguessable nanoid
+   *  and clips have built-in TTL/expiry. This allows iMessage and social crawlers to
+   *  fetch the video for inline playback without needing the JWT. */
+  app.get<{ Params: { clipId: string } }>(
     '/stream/:clipId/video.mp4',
     async (request, reply) => {
       const { clipId } = request.params;
-      const token = request.query.t;
 
-      const clip = await validateClipAccess(clipId, token);
-      if (!clip) {
-        return reply.status(410).send({ error: 'Clip expired or not found' });
-      }
+      const clip = await db.query.clips.findFirst({
+        where: eq(schema.clips.id, clipId),
+      });
+
+      if (!clip) return reply.status(404).send({ error: 'Not found' });
+      if (clip.status !== 'ready') return reply.status(404).send({ error: 'Not ready' });
+      if (clip.expiresAt < new Date()) return reply.status(410).send({ error: 'Expired' });
+      if (clip.maxViews && clip.viewCount >= clip.maxViews) return reply.status(410).send({ error: 'Expired' });
 
       const mp4Path = join(config.paths.clips, clipId, 'clip.mp4');
       try {
