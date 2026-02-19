@@ -15,15 +15,15 @@ services:
       - MAX_CONCURRENT_TRANSCODES=2
       - CLEANUP_GRACE_HOURS=24
       - HARDWARE_TRANSCODE=none
-      # Path mapping: set PLEX_MEDIA_PATH to the path prefix Plex uses for media files.
-      # Cliparr will rewrite those paths to /media (the container mount).
-      # Example: if Plex stores files at /data/media/Movies/Film.mkv,
-      # set PLEX_MEDIA_PATH=/data/media so it maps to /media/Movies/Film.mkv
-      - PLEX_MEDIA_PATH=/path/to/plex/media
+      # Only needed if Plex's internal file paths differ from this container's /media mount.
+      # Example: Plex reports files at /data/Movies/Film.mkv but you mount the same files
+      # at /media below → set PLEX_MEDIA_PATH=/data so /data/Movies/Film.mkv becomes /media/Movies/Film.mkv
+      # Leave empty if Plex paths already match the /media mount.
+      #- PLEX_MEDIA_PATH=/data
     volumes:
       - ./config:/config
       - ./clips:/clips
-      - /path/to/plex/media:/media:ro        # Read-only access to Plex media files
+      - /path/to/plex/media:/media:ro        # Mount your media library (read-only)
     # Uncomment for Intel QSV / VA-API GPU transcoding:
     # devices:
     #   - /dev/dri:/dev/dri

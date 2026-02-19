@@ -20,6 +20,13 @@ export function Library() {
     loadSections();
   }, [loadSections]);
 
+  // Auto-select first section if none is selected
+  useEffect(() => {
+    if (!sectionKey && sections.length > 0) {
+      navigate(`/library/${sections[0].key}`, { replace: true });
+    }
+  }, [sectionKey, sections, navigate]);
+
   useEffect(() => {
     if (sectionKey) {
       loadItems(sectionKey);
@@ -112,7 +119,7 @@ export function Library() {
               className={sectionKey === section.key ? 'btn-primary btn-sm' : 'btn-secondary btn-sm'}
               onClick={() => navigate(`/library/${section.key}`)}
             >
-              {section.title} ({section.count})
+              {section.title}
             </button>
           ))}
         </div>
