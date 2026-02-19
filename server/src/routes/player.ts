@@ -3,21 +3,27 @@ import { db, schema } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 import { config } from '../config.js';
 import { verifyClipToken } from '../services/token.js';
-import { readFile } from 'fs/promises';
+import { readdirSync, existsSync } from 'fs';
 import { resolve } from 'path';
 
-// Cache the index.html template (read once)
-let indexHtmlCache: string | null = null;
+// Discover SPA assets at startup (main JS + CSS files from Vite build)
+const webDistPath = resolve(import.meta.dirname, '../../../web/dist');
+const webAssetsPath = resolve(webDistPath, 'assets');
 
-async function getIndexHtml(): Promise<string> {
-  if (indexHtmlCache) return indexHtmlCache;
-  const webDistPath = resolve(import.meta.dirname, '../../../web/dist');
-  indexHtmlCache = await readFile(resolve(webDistPath, 'index.html'), 'utf-8');
-  return indexHtmlCache;
+let mainJs = '';
+let mainCss = '';
+
+if (existsSync(webAssetsPath)) {
+  const files = readdirSync(webAssetsPath);
+  mainJs = files.find((f) => f.startsWith('main-') && f.endsWith('.js')) || '';
+  mainCss = files.find((f) => f.startsWith('main-') && f.endsWith('.css')) || '';
+  console.log(`[player] Discovered SPA assets: js=${mainJs}, css=${mainCss}`);
+} else {
+  console.warn(`[player] WARNING: web assets not found at ${webAssetsPath}`);
 }
 
 export default async function playerRoutes(app: FastifyInstance) {
-  /** Public clip page - injects OG meta tags + clip data into the SPA index.html */
+  /** Public clip page - serves HTML with OG tags + SPA bundle */
   app.get<{ Params: { clipId: string }; Querystring: { t: string } }>(
     '/c/:clipId',
     async (request, reply) => {
@@ -42,8 +48,25 @@ export default async function playerRoutes(app: FastifyInstance) {
       const durationSec = clip ? Math.round(clip.durationMs / 1000) : 0;
       const durationFormatted = `${Math.floor(durationSec / 60)}:${String(durationSec % 60).padStart(2, '0')}`;
 
-      // Build the OG tags + clip data to inject
-      const ogTags = `
+      const clipDataJson = JSON.stringify({
+        clipId,
+        title: clip?.title || clip?.mediaTitle,
+        mediaTitle: clip?.mediaTitle,
+        durationMs: clip?.durationMs,
+        status: clip?.status || null,
+        isExpired,
+        isValid,
+        streamUrl: isValid ? `/stream/${clipId}/master.m3u8?t=${token}` : null,
+        thumbnailUrl: thumbnailUrl || null,
+      });
+
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(title)} - Cliparr</title>
+
   <!-- Open Graph -->
   <meta property="og:type" content="video.other" />
   <meta property="og:title" content="${escapeHtml(title)}" />
@@ -59,56 +82,32 @@ export default async function playerRoutes(app: FastifyInstance) {
   ${thumbnailUrl ? `<meta name="twitter:image" content="${thumbnailUrl}" />` : ''}
 
   <script>
-    window.__CLIP_DATA__ = ${JSON.stringify({
-      clipId,
-      title: clip?.title || clip?.mediaTitle,
-      mediaTitle: clip?.mediaTitle,
-      durationMs: clip?.durationMs,
-      status: clip?.status || null,
-      isExpired,
-      isValid,
-      streamUrl: isValid ? `/stream/${clipId}/master.m3u8?t=${token}` : null,
-      thumbnailUrl: thumbnailUrl || null,
-    })};
+    window.__CLIP_DATA__ = ${clipDataJson};
   </script>
 
-  ${isValid ? `<link rel="preload" href="/stream/${clipId}/master.m3u8?t=${token}" as="fetch" crossorigin />` : ''}`;
-
-      try {
-        let html = await getIndexHtml();
-
-        // Replace title
-        html = html.replace(
-          /<title>[^<]*<\/title>/,
-          `<title>${escapeHtml(title)} - Cliparr</title>`,
-        );
-
-        // Inject OG tags + clip data before </head>
-        html = html.replace('</head>', `${ogTags}\n</head>`);
-
-        // Add expired noscript content before </body> if expired
-        if (isExpired) {
-          const expiredHtml = `
+  ${isValid ? `<link rel="preload" href="/stream/${clipId}/master.m3u8?t=${token}" as="fetch" crossorigin />` : ''}
+  ${mainCss ? `<link rel="stylesheet" crossorigin href="/assets/${mainCss}">` : ''}
+  ${mainJs ? `<script type="module" crossorigin src="/assets/${mainJs}"></script>` : ''}
+</head>
+<body>
+  <div id="root"></div>
+  ${isExpired ? `
   <noscript>
     <div style="text-align:center;padding:2em;font-family:system-ui;color:#fff;background:#1a1a2e;">
       <h1>This clip has expired</h1>
       <p>The clip you are looking for is no longer available.</p>
     </div>
   </noscript>
-  <!-- expired clip indicator -->`;
-          html = html.replace('</body>', `${expiredHtml}\n</body>`);
-        }
+  <!-- expired clip indicator -->
+  ` : ''}
+</body>
+</html>`;
 
-        reply.header('Content-Type', 'text/html; charset=utf-8');
-        if (isExpired) {
-          reply.status(410);
-        }
-        return reply.send(html);
-      } catch (err) {
-        // Fallback: if index.html can't be read, serve minimal HTML
-        app.log.error(err, 'Failed to read index.html for player page');
-        return reply.status(500).send({ error: 'Player page not available' });
+      reply.header('Content-Type', 'text/html; charset=utf-8');
+      if (isExpired) {
+        reply.status(410);
       }
+      return reply.send(html);
     },
   );
 
